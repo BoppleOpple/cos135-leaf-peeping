@@ -41,6 +41,18 @@ int max(int a, int b) {
 	return (a > b) ? a : b;
 }
 
+int max3(int a, int b, int c) {
+	return max(a, max(b, c));
+}
+
+int min(int a, int b) {
+	return (a < b) ? a : b;
+}
+
+int min3(int a, int b, int c) {
+	return min(a, min(b, c));
+}
+
 void printNodeData(NODE *node) {
 	printf(" %*i ", NUM_DIGITS, node->data);
 }
@@ -69,83 +81,129 @@ void postOrderPrint(NODE *node) {
 	printNodeData(node);
 }
 
-/*
- * +
- * |
- * |
- * |
- * |
- * |
- * |+--+ 
- * |1 345
- * +
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
-**/
 char *prettyPrintTree(NODE *node, int *width, int *depth) {
+	// base case
 	if (node == NULL) {
 		*width = 1;
 		*depth = 0;
-		return " ";
+
+		// assign default value through malloc so it can be freed by its parent later
+		char *treeString = malloc(sizeof(char) * 2);
+		*treeString = ' ';
+		*(treeString + 1) = 0;
+		return treeString;
 	}
+
+	// initialize all variables
 	int leftWidth = -1;
 	int rightWidth = -1;
 	int leftDepth = -1;
 	int rightDepth = -1;
-	
+
+	// get the string representation of left and right subtrees
 	char *leftString = prettyPrintTree(node->left, &leftWidth, &leftDepth);
 	char *rightString = prettyPrintTree(node->right, &rightWidth, &rightDepth);
 
+	// get the number of characters the node's value will be
 	int nodeStringWidth = floor(log10(node->data)) + 1;
 
+	// set the width and depth of the string based on the width and depth of the subtree strings
 	*width = max(leftWidth + rightWidth + 1, nodeStringWidth);
 	*depth = max(leftDepth, rightDepth) + 2;
 
-	char *treeString = malloc(sizeof(char) * ( (*width + 1) * (*depth + 2) + 1));
+	// allocate a rectangular space for (w + 1) x d + 1 characters.
+	// (w + 1 to account for newlines, + 1 for termination)
+	char *treeString = malloc(sizeof(char) * ( (*width + 1) * *depth + 1));
 
+	// the first index to draw the node data
 	int dataStartColumn = (*width - nodeStringWidth + 1) / 2;
 
+	// allocate a string for the edges of the tree
 	char *connectionLine = malloc(sizeof(char) * (*width + 1));
 
+	// and populate it based on these rules:
+	// - a '/' should be drawn above the left child
+	// - a '^' schould be drawn below the node
+	// - a '\' should be drawn above the right child
+	// - in between the leftmost and rightmost of these three symbols should be '-'
+	// - everything else should be filled with ' '
+	// - if there are no children, nothing should be drawn
+	//
+	// EXAMPLES:
+	// '  4  '
+	// '/-^-\'
+	// '5   9'
+	//
+	// this could occur with an extremely large left subtree
+	// '    3    '
+	// '    ^-/-\'
+	// '      6 7'
+	//
+	// this could occur with an extremely large right subtree
+	// '    3    '
+	// '/-\-^    '
+	// '6 7      '
+
+	// add termination
 	*(connectionLine + *width) = 0;
+
+	int leftConnection = (leftDepth == 0) ? -1 : leftWidth / 2;
+	int selfConnection = dataStartColumn + (nodeStringWidth - 1) / 2;
+	int rightConnection = (rightDepth == 0) ? -1 : leftWidth + 1 + rightWidth / 2;
 	for (int i = 0; i < *width; i++) {
-		char c;
-		if (i < leftWidth / 2 || (i < dataStartColumn && leftDepth == 0)) c = ' ';
-		else if (i == leftWidth / 2) c = '/';
-		else if (i == dataStartColumn && (leftDepth != 0 || rightDepth != 0)) c = '^';
-		else if (i < leftWidth + 1 + rightWidth / 2 && (leftDepth != 0 || rightDepth != 0)) c = '-';
-		else if (i == leftWidth + 1 + rightWidth / 2 && rightDepth != 0) c = '\\';
-		else c = ' ';
+		char c = ' '; // print a space by default
+		if (leftDepth != 0 || rightDepth != 0) {
+			// print the appropriate characters at their connections
+			if (i == leftConnection) c = '/';
+			else if (i == selfConnection) c = '^';
+			else if (i == rightConnection) c = '\\';
+			// if i is left of the leftmost connection, print a ' '
+			else if (i < min3(leftConnection, selfConnection, rightConnection)) c = ' ';
+			// account for -1 being the default value, so the min will be -1 if any are missing
+			else if (min3(leftConnection, selfConnection, rightConnection) == -1) {
+				if (i < (leftDepth == -1 ? min(selfConnection, rightConnection) : min(selfConnection, leftConnection)))
+					c = ' ';
+			}
+			// and print a '-' if it's still in the line and nothing else has happened
+			else if (i < max3(leftConnection, selfConnection, rightConnection)) c = '-';
+		}
 
 		*(connectionLine + i) = c;
 	}
-
+	// print the node data with correct padding, then the connectionLine
 	sprintf(treeString, "%*s%i%*s\n%s\n", dataStartColumn, "", node->data, *width - (dataStartColumn + nodeStringWidth), "", connectionLine);
 
-	
+	free(connectionLine);
+	connectionLine = NULL;
+
+	// nor draw the subtrees next to each other
 	for (int row = 2; row < *depth; row++) {
+		// allocate each line, including newline and termination
 		char *line = malloc(*width + 2);
+		// fill it with spaces
 		sprintf(line, "%*s\n", *width, "");
 
+		// the the row exists in the left subtree, insert its string into the current row (minus the newlline)
 		if (row - 2 < leftDepth)
 			for (int i = 0; i < leftWidth; i++)
 				*(line + i) = *(leftString + (row - 2) * (leftWidth + 1) + i);
 		
+		// the the row exists in the right subtree, insert its string into the current row (minus the newlline)
 		if (row - 2 < rightDepth)
 			for (int i = 0; i < rightWidth; i++)
 				*(line + leftWidth + 1 + i) = *(rightString + (row - 2) * (rightWidth + 1) + i);
 		
+		// copy the line into the tree string, without termination character
+		// (i tried this with both strcpy and memcpy and neither worked especially well)
 		for (int i = 0; i <= *width; i++)
 			*(treeString + row * (*width + 1) + i) = *(line + i);
 	}
+
+	// free the subtrees
+	free(leftString);
+	leftString = NULL;
+	free(rightString);
+	rightString = NULL;
 	
 	return treeString;
 }
@@ -262,18 +320,8 @@ int main(int argc, char *argv[]) {
 			
 			int treeWidth = 0;
 			int treeHeight = 0;
+
 			printf("%s\n", prettyPrintTree(tree, &treeWidth, &treeHeight));
-			// printf("preorder:  [");
-			// preOrderPrint(tree);
-			// printf("]\n");
-
-			// printf("inorder:   [");
-			// inOrderPrint(tree);
-			// printf("]\n");
-
-			// printf("postorder: [");
-			// postOrderPrint(tree);
-			// printf("]\n\n");
 
 			deleteTree(tree);
 			tree = NULL;
@@ -284,8 +332,7 @@ int main(int argc, char *argv[]) {
 			free(preorder);
 			preorder = NULL;
 
-			// return 0;
-		} else {
+		} else { // inorder
 			inorder = arrayFromLine(buffer, &numElements);
 		}
 	}
