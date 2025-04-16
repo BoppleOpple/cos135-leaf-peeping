@@ -321,6 +321,13 @@ int main(int argc, char *argv[]) {
 			int treeWidth = 0;
 			int treeHeight = 0;
 
+			printf("\nPreorder:  ");
+			preOrderPrint(tree);
+			printf("\nInorder:   ");
+			inOrderPrint(tree);
+			printf("\nPostorder: ");
+			postOrderPrint(tree);
+			printf("\n");
 			printf("%s\n", prettyPrintTree(tree, &treeWidth, &treeHeight));
 
 			deleteTree(tree);
